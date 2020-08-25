@@ -5,6 +5,7 @@ use std::{
     ffi::CString,
     path::Path,
 };
+use crate::util;
 
 pub struct Shader {
     pub program_id: u32,
@@ -46,6 +47,19 @@ impl ShaderType {
             "geom" => { Ok(ShaderType::Geometry) },
             e => { Err(e.to_string()) },
         }
+    }
+}
+
+impl Shader {
+
+    // Get the uniform location and set it with the given matrix.
+    pub unsafe fn set_uniform_mat4(&self, name: &str, mat: &glm::Mat4){
+        let loc = gl::GetUniformLocation(self.program_id, CString::new(name).unwrap().as_ptr());
+        gl::UniformMatrix4fv(loc, 1, gl::FALSE, util::pointer_to_array(&mat.data) as *const f32);
+    }
+
+    pub unsafe fn activate(&self){
+        gl::UseProgram(self.program_id);
     }
 }
 

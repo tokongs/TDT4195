@@ -1,3 +1,5 @@
+mod my_format;
+
 extern crate nalgebra_glm as glm;
 
 use gl::types::*;
@@ -13,13 +15,14 @@ use std::sync::{Mutex, Arc, RwLock};
 mod shader;
 mod util;
 mod wavefront;
+mod mesh;
 
 
 use glutin::event::{Event, WindowEvent, KeyboardInput, ElementState::{Pressed, Released}, VirtualKeyCode::{self, *}};
 use glutin::event_loop::ControlFlow;
 use glm::length;
-use crate::wavefront::Mesh;
 use std::ffi::CString;
+use crate::mesh::Mesh;
 
 const SCREEN_W: u32 = 800;
 const SCREEN_H: u32 = 600;
@@ -28,11 +31,6 @@ const SCREEN_H: u32 = 600;
 // The names should be pretty self explanatory
 fn byte_size_of_array<T>(val: &[T]) -> isize {
     std::mem::size_of_val(&val[..]) as isize
-}
-
-// Get the OpenGL-compatible pointer to an arbitrary array of numbers
-fn pointer_to_array<T>(val: &[T]) -> *const c_void {
-    &val[0] as *const T as *const c_void
 }
 
 // Get the size of the given type in bytes
@@ -61,54 +59,15 @@ unsafe fn setup_vao(vertices: &Vec<f32>, indices: &Vec<u32>) -> u32 {
 
     //Fill vertex buffer
     gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-    gl::BufferData(gl::ARRAY_BUFFER, byte_size_of_array(vertices), pointer_to_array(vertices), gl::STATIC_DRAW);
+    gl::BufferData(gl::ARRAY_BUFFER, byte_size_of_array(vertices), util::pointer_to_array(vertices), gl::STATIC_DRAW);
 
     // Fill index buffer
     gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibo);
-    gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, byte_size_of_array(indices), pointer_to_array(indices), gl::STATIC_DRAW);
+    gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, byte_size_of_array(indices), util::pointer_to_array(indices), gl::STATIC_DRAW);
 
     // Configure vertex attribute layout
     gl::EnableVertexAttribArray(0);
     gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, size_of::<f32>() * 3, ptr::null());
-    gl::BindVertexArray(0);
-    return vao;
-}
-
-unsafe fn setup_vao_from_mesh(mesh: &Mesh) -> u32 {
-    let mut vao = 0;
-    let mut vbo = 0;
-    let mut ibo = 0;
-
-    // Generate VAO
-    gl::GenVertexArrays(1, &mut vao);
-    gl::BindVertexArray(vao);
-
-    //Generate vertex and index buffers
-    gl::GenBuffers(1, &mut vbo);
-    gl::GenBuffers(1, &mut ibo);
-
-    let bufferData = mesh.vertices.iter().flat_map(
-        |vertex| vec![
-            vertex.position.x, vertex.position.y, vertex.position.z,
-            vertex.normal.x, vertex.normal.y, vertex.normal.z,
-            vertex.tex_coord.x, vertex.tex_coord.y
-        ]).collect::<Vec<f32>>();
-
-    //Fill vertex buffer
-    gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-    gl::BufferData(gl::ARRAY_BUFFER, byte_size_of_array(&bufferData), pointer_to_array(&bufferData), gl::STATIC_DRAW);
-
-    // Fill index buffer
-    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibo);
-    gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, byte_size_of_array(&mesh.indices), pointer_to_array(&mesh.indices), gl::STATIC_DRAW);
-
-    // Configure vertex attribute layout
-    gl::EnableVertexAttribArray(0);
-    gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, size_of::<f32>() * 8, ptr::null());
-    gl::EnableVertexAttribArray(1);
-    gl::VertexAttribPointer(1, 3, gl::FLOAT, gl::FALSE, size_of::<f32>() * 8, (3 * size_of::<f32>()) as *const gl::types::GLvoid);
-    gl::EnableVertexAttribArray(2);
-    gl::VertexAttribPointer(2, 2, gl::FLOAT, gl::FALSE, size_of::<f32>() * 8, (5 * size_of::<f32>()) as *const gl::types::GLvoid);
     gl::BindVertexArray(0);
     return vao;
 }
@@ -177,30 +136,38 @@ fn main() {
         // == // Set up your VAO here
         //let vao = unsafe { setup_vao(&vertices, &indices) };
 
-        let mesh = Mesh::load("ball.obj");
-        let indices = mesh.indices.clone();
-        let vao = unsafe { setup_vao_from_mesh(&mesh) };
+        let mut ball: Mesh;
+        let mut torus: Mesh;
 
+        unsafe {
+            ball = my_format::load("cube.myf");
+            ball.init();
+
+            torus = wavefront::load("torus.obj");
+            torus.init();
+        }
+
+        torus.translate(glm::Vec3::new(2.0, 0.0, 0.0));
 
         // Basic usage of shader helper
         // The code below returns a shader object, which contains the field .program_id
         // The snippet is not enough to do the assignment, and will need to be modified (outside of just using the correct path)
-        let mut shader_program: shader::Shader;
+        let shader_program: shader::Shader;
         unsafe {
             shader_program = shader::ShaderBuilder::new().attach_file("shaders/simple.vert").attach_file("shaders/simple.frag").link();
-            gl::UseProgram(shader_program.program_id);
-            let view = glm::look_at(&glm::Vec3::new(0.0, 4.0, 4.0), &glm::Vec3::new(0.0, 0.0, 0.0), &glm::Vec3::new(0.0, 1.0, 0.0));
-            let perspective = glm::perspective(800 as f32 / SCREEN_H as f32, (3.14 /180.0)*60.0, 0.1, 100.0);
-            gl::UniformMatrix4fv(1, 1, gl::FALSE, pointer_to_array(&perspective.data) as *const f32);
-            gl::UniformMatrix4fv(2, 1, gl::FALSE, pointer_to_array(&view.data) as *const f32);
+
+            // Set the view and projection matrices
+            shader_program.activate();
+            shader_program.set_uniform_mat4("view_matrix",
+                                            &glm::look_at(
+                                                &glm::Vec3::new(0.0, 4.0, 4.0),
+                                                &glm::Vec3::new(0.0, 0.0, 0.0),
+                                                &glm::Vec3::new(0.0, 1.0, 0.0)));
+
+            shader_program.set_uniform_mat4("projection_matrix",
+                                            &glm::perspective(800 as f32 / SCREEN_H as f32, (3.14 / 180.0) * 60.0, 0.1, 100.0));
         };
 
-        let mut model_matrix = glm::Mat4::new(
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
-        );
 
         // Used to demonstrate keyboard handling -- feel free to remove
         let mut _arbitrary_number = 0.0;
@@ -230,18 +197,14 @@ fn main() {
                 }
             }
 
-            model_matrix = glm::rotate(&model_matrix, (3.14 / 180.0) * 0.5, &glm::Vec3::new(0.0, 1.0, 0.0));
+            ball.rotate(glm::Vec3::new(0.0, 1.0, 0.0), 0.1);
 
             unsafe {
                 gl::ClearColor(0.163, 0.163, 0.163, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT);
 
-                // Render
-                gl::BindVertexArray(vao);
-                gl::UseProgram(shader_program.program_id);
-                gl::UniformMatrix4fv(0, 1, gl::FALSE, pointer_to_array(&model_matrix.data) as *const f32);
-                gl::DrawElements(gl::TRIANGLES, indices.len() as i32, gl::UNSIGNED_INT, ptr::null());
-                gl::BindVertexArray(0);
+                ball.render(&shader_program);
+                torus.render(&shader_program);
             }
 
             context.swap_buffers().unwrap();
