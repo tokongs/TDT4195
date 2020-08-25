@@ -11,16 +11,16 @@ pub struct Vertex {
 
 
 #[derive(Clone)]
-pub struct Mesh {
+pub struct Model {
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
     vao: u32,
     model_matrix: glm::Mat4,
 }
 
-impl Mesh {
-    pub fn new(vertices: Vec<Vertex>, indices: Vec<u32>) -> Mesh {
-        return Mesh {
+impl Model {
+    pub fn new(vertices: Vec<Vertex>, indices: Vec<u32>) -> Model {
+        return Model {
             vertices,
             indices,
             vao: 0,
@@ -32,7 +32,7 @@ impl Mesh {
         };
     }
 
-    pub unsafe fn init(&mut self) -> &mut Mesh {
+    pub unsafe fn init(&mut self) -> &mut Model {
         let mut vbo = 0;
         let mut ibo = 0;
 
@@ -87,12 +87,20 @@ impl Mesh {
         gl::DrawElements(gl::TRIANGLES, self.indices.len() as i32, gl::UNSIGNED_INT, ptr::null());
     }
 
-    pub fn rotate(&mut self, axis: glm::Vec3, angle_in_rad: f32) -> &mut Mesh {
+    pub unsafe fn attach_texture(&mut self, path: &str){
+        let img = image::open(path).expect("Failed to load image {}", &path);
+        let mut texture = 0;
+        gl::GenTextures(1, &texture);
+        gl::BindTexture(gl::TEXTURE_2D, texture);
+        gl::TexImage2D(GL_TEXTURE_2D, 0, GL_RGB, )
+    }
+
+    pub fn rotate(&mut self, axis: glm::Vec3, angle_in_rad: f32) -> &mut Model {
         self.model_matrix = glm::rotate(&self.model_matrix, angle_in_rad, &axis);
         self
     }
 
-    pub fn translate(&mut self, translation: glm::Vec3) -> &mut Mesh {
+    pub fn translate(&mut self, translation: glm::Vec3) -> &mut Model {
         self.model_matrix = glm::translate(&self.model_matrix, &translation);
         self
     }
