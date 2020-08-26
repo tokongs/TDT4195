@@ -1,8 +1,11 @@
 #version 430 core
-in vec3 vertexColor;
+
+in vec2 fragment_tex_coord;
 out vec4 color;
+
+uniform sampler2D diffuse_texture;
 
 void main()
 {
-    color = vec4(vertexColor, 1.0f);
+    color = texture(diffuse_texture, fragment_tex_coord);
 }

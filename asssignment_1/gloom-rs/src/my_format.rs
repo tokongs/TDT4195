@@ -1,9 +1,9 @@
 use std::path::Path;
-use crate::mesh::{Mesh, Vertex};
+use crate::model::{Model, Vertex};
 
 extern crate nalgebra_glm as glm;
 
-pub fn load(path: &str) -> Mesh {
+pub fn load(path: &str) -> Model {
     let src = std::fs::read_to_string(Path::new(path))
         .expect(&format!("Failed to read .myf file. {}", path));
 
@@ -26,7 +26,7 @@ pub fn load(path: &str) -> Mesh {
         vertices.push(vertex);
     }
 
-    Mesh::new(vertices, index_line.strip_prefix(" ")
+    Model::new(vertices, index_line.strip_prefix(" ")
         .unwrap().split(" ")
         .map(|s| s.parse::<u32>().expect("Failed to parse u32"))
         .collect::<Vec<u32>>())

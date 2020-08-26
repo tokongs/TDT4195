@@ -16,6 +16,7 @@ pub struct Model {
     indices: Vec<u32>,
     vao: u32,
     model_matrix: glm::Mat4,
+    texture: u32,
 }
 
 impl Model {
@@ -24,6 +25,7 @@ impl Model {
             vertices,
             indices,
             vao: 0,
+            texture: 0,
             model_matrix: glm::Mat4::new(
                 1.0, 0.0, 0.0, 0.0,
                 0.0, 1.0, 0.0, 0.0,
@@ -32,7 +34,10 @@ impl Model {
         };
     }
 
-    pub unsafe fn init(&mut self) -> &mut Model {
+    /*
+        Create the buffers and insert data. And create the vao and vertex layout.
+    */
+    pub unsafe fn init(&mut self) {
         let mut vbo = 0;
         let mut ibo = 0;
 
@@ -70,10 +75,8 @@ impl Model {
 
         // tex coord vec2
         gl::EnableVertexAttribArray(2);
-        gl::VertexAttribPointer(2, 2, gl::FLOAT, gl::FALSE, util::size_of::<f32>() * 8, (5 * util::size_of::<f32>()) as *const gl::types::GLvoid);
+        gl::VertexAttribPointer(2, 2, gl::FLOAT, gl::FALSE, util::size_of::<f32>() * 8, (6 * util::size_of::<f32>()) as *const gl::types::GLvoid);
         gl::BindVertexArray(0);
-
-        self
     }
 
     // Render the mesh with the given shader. Assumes the shader has a model_matrix uniform
@@ -84,22 +87,37 @@ impl Model {
         // Update the model matrix
         shader.set_uniform_mat4("model_matrix", &self.model_matrix);
 
+        gl::BindTexture(gl::TEXTURE_2D, self.texture);
+
         gl::DrawElements(gl::TRIANGLES, self.indices.len() as i32, gl::UNSIGNED_INT, ptr::null());
     }
 
-    pub unsafe fn attach_texture(&mut self, path: &str){
-        let img = image::open(path).expect("Failed to load image {}", &path);
-        let mut texture = 0;
-        gl::GenTextures(1, &texture);
-        gl::BindTexture(gl::TEXTURE_2D, texture);
-        gl::TexImage2D(GL_TEXTURE_2D, 0, GL_RGB, )
+    /**
+        Load a texture from a file and attach it tp this model.
+    */
+    pub unsafe fn attach_texture(&mut self, path: &str) {
+        let img = image::open(path).expect(&format!("Failed to load image {}", &path)).to_rgb();
+        gl::GenTextures(1, &mut self.texture);
+        gl::BindTexture(gl::TEXTURE_2D, self.texture);
+
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+
+        gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGB as i32, img.width() as i32, img.height() as i32, 0, gl::RGB, gl::UNSIGNED_BYTE, util::pointer_to_array(&img.into_raw()));
+        gl::GenerateMipmap(gl::TEXTURE_2D);
     }
 
+    /**
+        Apply a rotation to the model matrix.
+    */
     pub fn rotate(&mut self, axis: glm::Vec3, angle_in_rad: f32) -> &mut Model {
         self.model_matrix = glm::rotate(&self.model_matrix, angle_in_rad, &axis);
         self
     }
 
+    /**
+        Apply a translation to the model matrix.
+    */
     pub fn translate(&mut self, translation: glm::Vec3) -> &mut Model {
         self.model_matrix = glm::translate(&self.model_matrix, &translation);
         self

@@ -15,14 +15,14 @@ use std::sync::{Mutex, Arc, RwLock};
 mod shader;
 mod util;
 mod wavefront;
-mod mesh;
+mod model;
 
 
 use glutin::event::{Event, WindowEvent, KeyboardInput, ElementState::{Pressed, Released}, VirtualKeyCode::{self, *}};
 use glutin::event_loop::ControlFlow;
 use glm::length;
 use std::ffi::CString;
-use crate::mesh::Mesh;
+use crate::model::Model;
 
 const SCREEN_W: u32 = 800;
 const SCREEN_H: u32 = 600;
@@ -106,6 +106,7 @@ fn main() {
             gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
             gl::Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
             gl::DebugMessageCallback(Some(util::debug_callback), ptr::null());
+
         }
 
         /** Data for task 1c
@@ -136,18 +137,29 @@ fn main() {
         // == // Set up your VAO here
         //let vao = unsafe { setup_vao(&vertices, &indices) };
 
-        let mut ball: Mesh;
-        let mut torus: Mesh;
+        // Load meshes and textures.
+        let mut ball: Model;
+        let mut torus: Model;
+        let mut cube: Model;
 
+        // Load models
         unsafe {
-            ball = my_format::load("cube.myf");
+            ball = my_format::load("resources/ball.myf");
+            ball.attach_texture("resources/ball.png");
             ball.init();
 
-            torus = wavefront::load("torus.obj");
+            cube = wavefront::load("resources/cube.obj");
+            cube.attach_texture("resources/cube.png");
+            cube.init();
+
+            torus = my_format::load("resources/torus.myf");
+            torus.attach_texture("resources/torus.png");
             torus.init();
         }
 
-        torus.translate(glm::Vec3::new(2.0, 0.0, 0.0));
+        //Move models to right location
+        torus.translate(glm::Vec3::new(-2.0, 0.0, 0.0));
+        cube.translate(glm::Vec3::new(2.0, 0.0, 0.0));
 
         // Basic usage of shader helper
         // The code below returns a shader object, which contains the field .program_id
@@ -158,12 +170,15 @@ fn main() {
 
             // Set the view and projection matrices
             shader_program.activate();
+
+            // set the view matrix
             shader_program.set_uniform_mat4("view_matrix",
                                             &glm::look_at(
                                                 &glm::Vec3::new(0.0, 4.0, 4.0),
                                                 &glm::Vec3::new(0.0, 0.0, 0.0),
                                                 &glm::Vec3::new(0.0, 1.0, 0.0)));
 
+            // set the projection matrix
             shader_program.set_uniform_mat4("projection_matrix",
                                             &glm::perspective(800 as f32 / SCREEN_H as f32, (3.14 / 180.0) * 60.0, 0.1, 100.0));
         };
@@ -197,14 +212,19 @@ fn main() {
                 }
             }
 
-            ball.rotate(glm::Vec3::new(0.0, 1.0, 0.0), 0.1);
+            // Rotate everything once per frame
+            ball.rotate(glm::Vec3::new(0.0, 1.0, 0.0), 0.01);
+            torus.rotate(glm::Vec3::new(0.0, 0.0, 1.0), -0.01);
+            cube.rotate(glm::Vec3::new(1.0, 0.0, 1.0), 0.01);
 
             unsafe {
-                gl::ClearColor(0.163, 0.163, 0.163, 1.0);
+                gl::ClearColor((elapsed / 10.0) % 1.0, (elapsed / 7.0) % 1.0, (elapsed /8.0) % 1.0, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT);
 
+                // Render models
                 ball.render(&shader_program);
                 torus.render(&shader_program);
+                cube.render(&shader_program);
             }
 
             context.swap_buffers().unwrap();

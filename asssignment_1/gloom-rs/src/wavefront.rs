@@ -3,7 +3,7 @@ use std::{ffi::CString, path::Path, ptr, str};
 
 use std::fs::File;
 use std::io::{self, prelude::*, BufReader};
-use crate::mesh::{Mesh, Vertex};
+use crate::model::{Model, Vertex};
 
 extern crate nalgebra_glm as glm;
 
@@ -11,7 +11,7 @@ extern crate nalgebra_glm as glm;
     Read a Wavefront file and output a Mesh. The file has to have posititions, normals and tex_coords.
     It will also need triangulated faces.
 */
-pub fn load(path: &str) -> Mesh {
+pub fn load(path: &str) -> Model {
     let src = std::fs::read_to_string(Path::new(path))
         .expect(&format!("Failed to read .obj file. {}", path));
 
@@ -35,7 +35,7 @@ pub fn load(path: &str) -> Mesh {
         }
     }
 
-    Mesh::new(vertices, indices)
+    Model::new(vertices, indices)
 }
 
 /**
