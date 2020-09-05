@@ -1,3 +1,4 @@
+use core::ffi::c_void;
 use std::ffi::CString;
 
 pub unsafe fn get_gl_string(name: gl::types::GLenum) -> String {
@@ -30,3 +31,8 @@ pub extern "system" fn debug_callback(
     }
 }
 
+
+// Get the OpenGL-compatible pointer to an arbitrary array of numbers
+pub fn pointer_to_array<T>(val: &[T]) -> *const c_void {
+    &val[0] as *const T as *const c_void
+}

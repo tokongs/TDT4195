@@ -5,6 +5,7 @@ use std::{
     ffi::CString,
     path::Path,
 };
+use crate::util;
 
 pub struct Shader {
     pub program_id: u32,
@@ -29,6 +30,13 @@ impl Shader {
     pub unsafe fn get_uniform_location(&self, name: &str) -> i32 {
         gl::GetUniformLocation(self.program_id, CString::new(name).expect("CString::new failed").as_ptr())
     }
+
+    // Get the uniform location and set it with the given matrix.
+    pub unsafe fn set_uniform_mat4(&self, name: &str, mat: &glm::Mat4){
+        let loc = self.get_uniform_location(name);
+        gl::UniformMatrix4fv(loc, 1, gl::FALSE, util::pointer_to_array(&mat.data) as *const f32);
+    }
+
 
     pub unsafe fn activate(&self) {
         gl::UseProgram(self.program_id);
