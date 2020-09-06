@@ -1,4 +1,7 @@
+mod particle_system;
+
 extern crate nalgebra_glm as glm;
+
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::{mem, os::raw::c_void, ptr};
@@ -14,6 +17,7 @@ use glutin::event::{
     WindowEvent,
 };
 use glutin::event_loop::ControlFlow;
+use crate::particle_system::ParticleSystem;
 
 const SCREEN_W: u32 = 800;
 const SCREEN_H: u32 = 600;
@@ -67,6 +71,7 @@ unsafe fn setup_vao(vertices: &Vec<f32>, indices: &Vec<u32>) -> u32 {
     gl::BindVertexArray(0);
     return vao;
 }
+
 fn main() {
     // Set up the necessary objects to deal with windows and event handling
     let el = glutin::event_loop::EventLoop::new();
@@ -125,15 +130,12 @@ fn main() {
             0.0, 0.5, -3.0, 0.0, 1.0, 0.0, 0.5,
             -0.5, 0.0, -3.0, 0.0, 1.0, 0.0, 0.5,
             0.5, 0.0, -3.0, 0.0, 1.0, 0.0, 0.5,
-
             0.4, 0.5, -2.0, 0.0, 0.0, 1.0, 0.5,
             -0.1, 0.0, -2.0, 0.0, 0.0, 1.0, 0.5,
             0.9, 0.0, -2.0, 0.0, 0.0, 1.0, 0.5,
-
             -0.4, 0.5, -1.0, 1.0, 0.0, 0.0, 0.5,
             -0.9, 0.0, -1.0, 1.0, 0.0, 0.0, 0.5,
             0.1, 0.0, -1.0, 1.0, 0.0, 0.0, 0.5,
-
         ];
         let indices: Vec<u32> = vec![
             0, 1, 2,
@@ -155,6 +157,16 @@ fn main() {
             shader.activate();
             shader.set_uniform_mat4("projection", &glm::perspective(800 as f32 / SCREEN_H as f32, (3.14 / 180.0) * 60.0, 1.0, 100.0));
         }
+
+
+        let mut particle_system = ParticleSystem::new(
+            1000,
+            glm::vec3(0.0, 0.0, 0.0),
+            0.2,
+            1.0,
+            3.0,
+            |current, timestep| current,
+            |current, timestep| current);
 
         // Used to demonstrate keyboard handling -- feel free to remove
         let mut _arbitrary_number = 0.0;
@@ -180,6 +192,8 @@ fn main() {
                 0.0, 0.0, 1.0, 0.0,
                 0.0, 0.0, 0.0, 1.0,
             );
+
+            particle_system.tick(delta_time);
 
             // Handle keyboard input
             if let Ok(keys) = pressed_keys.lock() {
@@ -224,12 +238,12 @@ fn main() {
                 value += delta.0 / 10.0;
                 *delta = (0.0, 0.0);
             }
-            cameraMatrix =  glm::rotate_x(&cameraMatrix, rx);
-            cameraMatrix =  glm::rotate_y(&cameraMatrix, ry);
+            cameraMatrix = glm::rotate_x(&cameraMatrix, rx);
+            cameraMatrix = glm::rotate_y(&cameraMatrix, ry);
 
-            cameraMatrix =  glm::translate(&cameraMatrix, &glm::vec3(x, 0.0, 0.0));
-            cameraMatrix =  glm::translate(&cameraMatrix, &glm::vec3(0.0, y, 0.0));
-            cameraMatrix =  glm::translate(&cameraMatrix, &glm::vec3(0.0, 0.0, z));
+            cameraMatrix = glm::translate(&cameraMatrix, &glm::vec3(x, 0.0, 0.0));
+            cameraMatrix = glm::translate(&cameraMatrix, &glm::vec3(0.0, y, 0.0));
+            cameraMatrix = glm::translate(&cameraMatrix, &glm::vec3(0.0, 0.0, z));
 
 
             unsafe {
@@ -282,15 +296,15 @@ fn main() {
             // Keep track of currently pressed keys to send to the rendering thread
             Event::WindowEvent {
                 event:
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: key_state,
-                                virtual_keycode: Some(keycode),
-                                ..
-                            },
+                WindowEvent::KeyboardInput {
+                    input:
+                    KeyboardInput {
+                        state: key_state,
+                        virtual_keycode: Some(keycode),
                         ..
                     },
+                    ..
+                },
                 ..
             } => {
                 if let Ok(mut keys) = arc_pressed_keys.lock() {
