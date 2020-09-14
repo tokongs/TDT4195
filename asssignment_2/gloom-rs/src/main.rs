@@ -22,22 +22,6 @@ use crate::particle_system::ParticleSystem;
 const SCREEN_W: u32 = 800;
 const SCREEN_H: u32 = 600;
 
-// == // Helper functions to make interacting with OpenGL a little bit prettier. You *WILL* need these! // == //
-// The names should be pretty self explanatory
-fn byte_size_of_array<T>(val: &[T]) -> isize {
-    std::mem::size_of_val(&val[..]) as isize
-}
-
-// Get the size of the given type in bytes
-fn size_of<T>() -> i32 {
-    mem::size_of::<T>() as i32
-}
-
-// Get an offset in bytes for n units of type T
-fn offset<T>(n: u32) -> *const c_void {
-    (n * mem::size_of::<T>() as u32) as *const T as *const c_void
-}
-
 // Get a null pointer (equivalent to an offset of 0)
 // ptr::null()
 
@@ -56,18 +40,18 @@ unsafe fn setup_vao(vertices: &Vec<f32>, indices: &Vec<u32>) -> u32 {
 
     //Fill vertex buffer
     gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-    gl::BufferData(gl::ARRAY_BUFFER, byte_size_of_array(vertices), util::pointer_to_array(vertices), gl::STATIC_DRAW);
+    gl::BufferData(gl::ARRAY_BUFFER, util::byte_size_of_array(vertices), util::pointer_to_array(vertices), gl::STATIC_DRAW);
 
     // Fill index buffer
     gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibo);
-    gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, byte_size_of_array(indices), util::pointer_to_array(indices), gl::STATIC_DRAW);
+    gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, util::byte_size_of_array(indices), util::pointer_to_array(indices), gl::STATIC_DRAW);
 
     // Configure vertex attribute layout
     gl::EnableVertexAttribArray(0);
-    gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, size_of::<f32>() * 7, ptr::null());
+    gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, util::size_of::<f32>() * 7, ptr::null());
 
     gl::EnableVertexAttribArray(1);
-    gl::VertexAttribPointer(1, 4, gl::FLOAT, gl::FALSE, size_of::<f32>() * 7, (3 * size_of::<f32>()) as *const gl::types::GLvoid);
+    gl::VertexAttribPointer(1, 4, gl::FLOAT, gl::FALSE, util::size_of::<f32>() * 7, (3 * util::size_of::<f32>()) as *const gl::types::GLvoid);
     gl::BindVertexArray(0);
     return vao;
 }
@@ -153,20 +137,53 @@ fn main() {
         let shader = unsafe {
             shader::ShaderBuilder::new().attach_file("./shaders/simple.frag").attach_file("./shaders/simple.vert").link()
         };
-        unsafe {
-            shader.activate();
-            shader.set_uniform_mat4("projection", &glm::perspective(800 as f32 / SCREEN_H as f32, (3.14 / 180.0) * 60.0, 1.0, 100.0));
-        }
+
+        let particle_shader = unsafe {
+            shader::ShaderBuilder::new().attach_file("./shaders/simple.frag").attach_file("./shaders/particles.vert").link()
+        };
+
+        let projection = glm::perspective(800 as f32 / SCREEN_H as f32, (3.14 / 180.0) * 60.0, 1.0, 100.0);
 
 
-        let mut particle_system = ParticleSystem::new(
+        let mut particle_system1 = ParticleSystem::new(
             1000,
-            glm::vec3(0.0, 0.0, 0.0),
-            0.2,
+            glm::vec3(0.0, 0.0, -2.0),
+            0.1,
+            0.5,
+            2.0,
+            |current, timestep|
+                if timestep == -1.0 {
+                    glm::vec3(util::generate_rng(-0.1, 0.1), util::generate_rng(0.1, 0.6), util::generate_rng(-0.1, 0.1))
+                } else {
+                    current + (glm::vec3(0.0, -0.1, 0.0) * timestep)
+                },
+            |current, timestep|
+                if timestep == -1.0 {
+                    glm::vec4(0.0, 0.0, 0.0, 0.1)
+                } else {
+                    current + (glm::vec4(1.0, 0.5, 0.0, 1.0) * timestep)
+                },
+            particle_shader);
+
+        let mut particle_system2 = ParticleSystem::new(
+            1000,
+            glm::vec3(1.0, 0.0, -2.0),
+            0.01,
             1.0,
             3.0,
-            |current, timestep| current,
-            |current, timestep| current);
+            |current, timestep|
+                if timestep == -1.0 {
+                    glm::vec3(util::generate_rng(-0.2, 0.2), util::generate_rng(0.5, 1.0), util::generate_rng(-0.2, 0.2))
+                } else {
+                    current + (glm::vec3(0.0, -0.4, 0.0) * timestep)
+                },
+            |current, timestep|
+                if timestep == -1.0 {
+                    glm::vec4(0.0, 0.0, 1.0, 0.1)
+                } else {
+                    current + (glm::vec4(0.1, 0.5, 0.0, 1.0) * timestep)
+                },
+            particle_shader);
 
         // Used to demonstrate keyboard handling -- feel free to remove
         let mut _arbitrary_number = 0.0;
@@ -186,14 +203,15 @@ fn main() {
             let delta_time = now.duration_since(last_frame_time).as_secs_f32();
             last_frame_time = now;
 
-            let mut cameraMatrix = glm::mat4(
+            let mut view = glm::mat4(
                 1.0, 0.0, 0.0, 0.0,
                 0.0, 1.0, 0.0, 0.0,
                 0.0, 0.0, 1.0, 0.0,
                 0.0, 0.0, 0.0, 1.0,
             );
 
-            particle_system.tick(delta_time);
+            particle_system1.tick(delta_time);
+            particle_system2.tick(delta_time);
 
             // Handle keyboard input
             if let Ok(keys) = pressed_keys.lock() {
@@ -238,23 +256,27 @@ fn main() {
                 value += delta.0 / 10.0;
                 *delta = (0.0, 0.0);
             }
-            cameraMatrix = glm::rotate_x(&cameraMatrix, rx);
-            cameraMatrix = glm::rotate_y(&cameraMatrix, ry);
+            view = glm::rotate_y(&view, ry);
+            view = glm::rotate_x(&view, rx);
 
-            cameraMatrix = glm::translate(&cameraMatrix, &glm::vec3(x, 0.0, 0.0));
-            cameraMatrix = glm::translate(&cameraMatrix, &glm::vec3(0.0, y, 0.0));
-            cameraMatrix = glm::translate(&cameraMatrix, &glm::vec3(0.0, 0.0, z));
+            view = glm::translate(&view, &glm::vec3(x, 0.0, 0.0));
+            view = glm::translate(&view, &glm::vec3(0.0, y, 0.0));
+            view = glm::translate(&view, &glm::vec3(0.0, 0.0, z));
 
 
             unsafe {
                 gl::ClearColor(0.163, 0.163, 0.163, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT);
 
+                particle_system1.render(&projection, &view);
+                particle_system2.render(&projection, &view);
+
+
                 gl::BindVertexArray(vao);
                 shader.activate();
 
-                shader.set_uniform_mat4("view", &cameraMatrix);
-
+                shader.set_uniform_mat4("projection", &projection);
+                shader.set_uniform_mat4("view", &view);
 
                 gl::DrawElements(gl::TRIANGLES, indices.len() as i32, gl::UNSIGNED_INT, ptr::null());
             }

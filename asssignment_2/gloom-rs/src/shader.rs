@@ -7,6 +7,7 @@ use std::{
 };
 use crate::util;
 
+#[derive(Copy, Clone)]
 pub struct Shader {
     pub program_id: u32,
 }
