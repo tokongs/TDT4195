@@ -21,7 +21,7 @@ use glutin::event::{
 };
 use glutin::event_loop::ControlFlow;
 use crate::particle_system::ParticleSystem;
-use crate::scene_graph::SceneNode;
+use crate::scene_graph::{SceneNode, Node};
 use crate::shader::Shader;
 use glm::Vec3;
 use std::ops::Neg;
@@ -31,50 +31,42 @@ use crate::mesh::Helicopter;
 const SCREEN_W: u32 = 800;
 const SCREEN_H: u32 = 600;
 
-// Get a null pointer (equivalent to an offset of 0)
-// ptr::null()
 
-struct Heli {
-    root: SceneNode,
-    main: SceneNode,
-    door: SceneNode,
-    tail: SceneNode,
+struct HeliController {
+    direction: glm::Vec3,
+    up: glm::Vec3,
 }
 
-impl Heli {
-    fn create_heli(helicopter: &Helicopter) -> Self {
+fn create_heli(helicopter: &Helicopter) -> Node {
+    let heli_body_vao = unsafe {
+        setup_vao(&helicopter.body.vertices, &helicopter.body.normals, &helicopter.body.colors, &helicopter.body.indices)
+    };
 
-        let heli_body_vao = unsafe {
-            setup_vao(&helicopter.body.vertices, &helicopter.body.normals, &helicopter.body.colors, &helicopter.body.indices)
-        };
+    let heli_main_rotor_vao = unsafe {
+        setup_vao(&helicopter.main_rotor.vertices, &helicopter.main_rotor.normals, &helicopter.main_rotor.colors, &helicopter.main_rotor.indices)
+    };
 
-        let heli_main_rotor_vao = unsafe {
-            setup_vao(&helicopter.main_rotor.vertices, &helicopter.main_rotor.normals, &helicopter.main_rotor.colors, &helicopter.main_rotor.indices)
-        };
+    let heli_tail_rotor_vao = unsafe {
+        setup_vao(&helicopter.tail_rotor.vertices, &helicopter.tail_rotor.normals, &helicopter.tail_rotor.colors, &helicopter.tail_rotor.indices)
+    };
 
-        let heli_tail_rotor_vao = unsafe {
-            setup_vao(&helicopter.tail_rotor.vertices, &helicopter.tail_rotor.normals, &helicopter.tail_rotor.colors, &helicopter.tail_rotor.indices)
-        };
+    let heli_door_vao = unsafe {
+        setup_vao(&helicopter.door.vertices, &helicopter.door.normals, &helicopter.door.colors, &helicopter.door.indices)
+    };
 
-        let heli_door_vao = unsafe {
-            setup_vao(&helicopter.door.vertices, &helicopter.door.normals, &helicopter.door.colors, &helicopter.door.indices)
-        };
+    let mut root = SceneNode::from_vao(heli_body_vao, helicopter.body.index_count);
+    let mut main = SceneNode::from_vao(heli_main_rotor_vao, helicopter.main_rotor.index_count);
+    let mut tail = SceneNode::from_vao(heli_tail_rotor_vao, helicopter.tail_rotor.index_count);
+    let mut door = SceneNode::from_vao(heli_door_vao, helicopter.door.index_count);
 
-        let mut result = Self {
-            root: SceneNode::from_vao(heli_body_vao, helicopter.body.index_count),
-            main: SceneNode::from_vao(heli_main_rotor_vao, helicopter.main_rotor.index_count),
-            tail: SceneNode::from_vao(heli_tail_rotor_vao, helicopter.tail_rotor.index_count),
-            door: SceneNode::from_vao(heli_door_vao, helicopter.door.index_count)
-        };
 
-        result.tail.reference_point = Vec3::new(0.35, 2.3, 10.4);
+    tail.reference_point = Vec3::new(0.35, 2.3, 10.4);
 
-        result.root.add_child(&result.main);
-        result.root.add_child(&result.tail);
-        result.root.add_child(&result.door);
+    root.add_child(&mut main);
+    root.add_child(&mut tail);
+    root.add_child(&mut door);
 
-        result
-    }
+    root
 }
 
 unsafe fn setup_vao(vertices: &Vec<f32>, normals: &Vec<f32>, colors: &Vec<f32>, indices: &Vec<u32>) -> u32 {
@@ -93,16 +85,16 @@ unsafe fn setup_vao(vertices: &Vec<f32>, normals: &Vec<f32>, colors: &Vec<f32>, 
     let mut buffer_data = vec![];
 
     for i in 0..(vertices.len() / 3 - 1) {
-        buffer_data.push(vertices[&i*3 + 0]);
-        buffer_data.push(vertices[&i*3 + 1]);
-        buffer_data.push(vertices[&i*3 + 2]);
-        buffer_data.push(normals[&i*3 + 0]);
-        buffer_data.push(normals[&i*3 + 1]);
-        buffer_data.push(normals[&i*3 + 2]);
-        buffer_data.push(colors[&i*4 + 0]);
-        buffer_data.push(colors[&i*4 + 1]);
-        buffer_data.push(colors[&i*4 + 2]);
-        buffer_data.push(colors[&i*4 + 3]);
+        buffer_data.push(vertices[&i * 3 + 0]);
+        buffer_data.push(vertices[&i * 3 + 1]);
+        buffer_data.push(vertices[&i * 3 + 2]);
+        buffer_data.push(normals[&i * 3 + 0]);
+        buffer_data.push(normals[&i * 3 + 1]);
+        buffer_data.push(normals[&i * 3 + 2]);
+        buffer_data.push(colors[&i * 4 + 0]);
+        buffer_data.push(colors[&i * 4 + 1]);
+        buffer_data.push(colors[&i * 4 + 2]);
+        buffer_data.push(colors[&i * 4 + 3]);
     }
     //Fill vertex buffer
     gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
@@ -126,10 +118,8 @@ unsafe fn setup_vao(vertices: &Vec<f32>, normals: &Vec<f32>, colors: &Vec<f32>, 
     return vao;
 }
 
-unsafe fn draw_scene(root: &SceneNode, view_projection_matrix: &glm::Mat4, shader: &Shader){
-
-
-    if root.index_count > 0{
+unsafe fn draw_scene(root: &scene_graph::SceneNode, view_projection_matrix: &glm::Mat4, shader: &Shader) {
+    if root.index_count > 0 {
         gl::BindVertexArray(root.vao_id);
         shader.activate();
         shader.set_uniform_mat4("vp_matrix", &view_projection_matrix);
@@ -138,42 +128,45 @@ unsafe fn draw_scene(root: &SceneNode, view_projection_matrix: &glm::Mat4, shade
         gl::DrawElements(gl::TRIANGLES, root.index_count as i32, gl::UNSIGNED_INT, ptr::null());
     }
 
+    for &child in & root.children {
+        draw_scene(&*child, view_projection_matrix, &shader);
+    }
+}
+
+
+unsafe fn update_node_transformations(root: &mut SceneNode, transformation_so_far: &glm::Mat4) {
+    root.current_transformation_matrix.fill_with_identity();
+    root.current_transformation_matrix = glm::scale(&root.current_transformation_matrix, &root.scale);
+    root.current_transformation_matrix = glm::translate(&root.current_transformation_matrix, &root.position);
+    root.current_transformation_matrix = glm::translate(&root.current_transformation_matrix, &&root.reference_point);
+    root.current_transformation_matrix = glm::rotate_x(&root.current_transformation_matrix, root.rotation.x);
+    root.current_transformation_matrix = glm::rotate_y(&root.current_transformation_matrix, root.rotation.y);
+    root.current_transformation_matrix = glm::rotate_z(&root.current_transformation_matrix, root.rotation.z);
+    root.current_transformation_matrix = glm::translate(&root.current_transformation_matrix, &-&root.reference_point);
+    root.current_transformation_matrix = transformation_so_far * &root.current_transformation_matrix;
+
+    root.current_aboslute_position = glm::vec4_to_vec3(&(&root.current_transformation_matrix * glm::vec3_to_vec4(&root.position)));
+
+    println!("num children {}", root.children.len() as u32);
     for &child in &root.children {
-        draw_scene(&*child, view_projection_matrix, shader);
+        update_node_transformations(&mut *child, &root.current_transformation_matrix);
     }
 }
 
-unsafe fn update_node_transformations(root: &*mut SceneNode, transformation_so_far: &glm::Mat4){
-    (*(*root)).current_transformation_matrix.fill_with_identity();
-    (*(*root)).current_transformation_matrix = glm::scale(&(*(*root)).current_transformation_matrix, &(*(*root)).scale);
-    (*(*root)).current_transformation_matrix = glm::translate(&(*(*root)).current_transformation_matrix, &(*(*root)).position);
-    (*(*root)).current_transformation_matrix = glm::translate(&(*(*root)).current_transformation_matrix, &&(*(*root)).reference_point);
-    (*(*root)).current_transformation_matrix = glm::rotate_x(&(*(*root)).current_transformation_matrix, (*(*root)).rotation.x);
-    (*(*root)).current_transformation_matrix = glm::rotate_y(&(*(*root)).current_transformation_matrix, (*(*root)).rotation.y);
-    (*(*root)).current_transformation_matrix = glm::rotate_z(&(*(*root)).current_transformation_matrix, (*(*root)).rotation.z);
-    (*(*root)).current_transformation_matrix = glm::translate(&(*(*root)).current_transformation_matrix, &-&(*(*root)).reference_point);
-    (*(*root)).current_transformation_matrix = transformation_so_far * &(*(*root)).current_transformation_matrix;
-
-    println!("num children {}", (*(*root)).children.len() as u32);
-    for mut child in &(*(*root)).children {
-        update_node_transformations(child, &(*(*root)).current_transformation_matrix);
-    }
+unsafe fn rotate_rotors(heli: &mut SceneNode, delta_time: f32) {
+    (*heli.children[0]).rotation += glm::vec3(0.0, 200.0 * &delta_time, 0.0);
+    (*heli.children[1]).rotation += glm::vec3(-200.0 * &delta_time, 0.0, 0.0);
 }
 
-fn rotate_rotors(heli: &mut Heli, delta_time: f32) {
-    heli.main.rotation += glm::vec3(0.0, 200.0 * &delta_time, 0.0);
-    heli.tail.rotation += glm::vec3(-200.0 * &delta_time, 0.0, 0.0);
-}
-
-fn change_heading(heli: &mut Heli, time: f32){
+fn change_heading(heli: &mut SceneNode, time: f32) {
     let heading = simple_heading_animation(time);
 
 
-    heli.root.position.x = heading.x;
-    heli.root.position.z = heading.z;
-    heli.root.rotation.x = heading.pitch;
-    heli.root.rotation.y = heading.yaw;
-    heli.root.rotation.z = heading.roll;
+    heli.position.x = heading.x;
+    heli.position.z = heading.z;
+    heli.rotation.x = heading.pitch;
+    heli.rotation.y = heading.yaw;
+    heli.rotation.z = heading.roll;
 }
 
 fn main() {
@@ -211,7 +204,7 @@ fn main() {
         // Set up openGL
         unsafe {
             gl::Enable(gl::CULL_FACE);
-            gl::Enable (gl::DEPTH_TEST);
+            gl::Enable(gl::DEPTH_TEST);
             gl::Disable(gl::MULTISAMPLE);
             gl::Enable(gl::BLEND);
             gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
@@ -230,7 +223,6 @@ fn main() {
                 util::get_gl_string(gl::SHADING_LANGUAGE_VERSION)
             );
         }
-
 
 
         // Basic usage of shader helper
@@ -253,21 +245,25 @@ fn main() {
 
         let helicopter = mesh::Helicopter::load("resources/helicopter.obj");
 
-        let mut heli1 = Heli::create_heli(&helicopter);
-        let mut heli2 = Heli::create_heli(&helicopter);
-        let mut heli3 = Heli::create_heli(&helicopter);
-        let mut heli4 = Heli::create_heli(&helicopter);
-        let mut heli5 = Heli::create_heli(&helicopter);
+        let mut heli1 = create_heli(&helicopter);
+        let mut heli2 = create_heli(&helicopter);
+        let mut heli3 = create_heli(&helicopter);
+        let mut heli4 = create_heli(&helicopter);
+        let mut heli5 = create_heli(&helicopter);
 
-        terrain_node.add_child(&heli1.root);
-        terrain_node.add_child(&heli2.root);
-        terrain_node.add_child(&heli3.root);
-        terrain_node.add_child(&heli4.root);
-        terrain_node.add_child(&heli5.root);
+        let mut player_heli = create_heli(&helicopter);
+        let mut heli_controller = HeliController { direction: glm::vec3(0.0, 0.0, 1.0), up: glm::vec3(0.0, 1.0, 0.0) };
 
-        root_node.add_child(&terrain_node);
+        terrain_node.add_child(&mut heli1);
+        terrain_node.add_child(&mut heli2);
+        terrain_node.add_child(&mut heli3);
+        terrain_node.add_child(&mut heli4);
+        terrain_node.add_child(&mut heli5);
+        terrain_node.add_child(&mut player_heli);
 
-        let scene_graph = root_node;
+        root_node.add_child(&mut terrain_node);
+
+        let mut scene_graph = root_node;
 
         // Used to demonstrate keyboard handling -- feel free to remove
         let mut _arbitrary_number = 0.0;
@@ -282,20 +278,20 @@ fn main() {
         let mut rx = 0.0;
         let mut ry = 0.0;
         let mut timer = 0.0;
+
+        let mut view = glm::identity();
         loop {
             let now = std::time::Instant::now();
             let elapsed = now.duration_since(first_frame_time).as_secs_f32();
             let delta_time = now.duration_since(last_frame_time).as_secs_f32();
             last_frame_time = now;
 
-            let mut view = glm::identity();
-
             // Handle keyboard input
             if let Ok(keys) = pressed_keys.lock() {
                 for key in keys.iter() {
                     match key {
                         VirtualKeyCode::A => {
-                            x += delta_time * 10.0;
+                            player_heli.position += &heli_controller.up;
                         }
                         VirtualKeyCode::D => {
                             x += delta_time * -10.0;
@@ -335,35 +331,36 @@ fn main() {
             }
 
             timer += delta_time;
-            view = glm::rotate_y(&view, ry);
-            view = glm::rotate_x(&view, rx);
 
-            view = glm::translate(&view, &glm::vec3(x, 0.0, 0.0));
-            view = glm::translate(&view, &glm::vec3(0.0, y, 0.0));
-            view = glm::translate(&view, &glm::vec3(0.0, 0.0, z));
 
-            rotate_rotors(&mut heli1, delta_time);
-            rotate_rotors(&mut heli2, delta_time);
-            rotate_rotors(&mut heli3, delta_time);
-            rotate_rotors(&mut heli4, delta_time);
-            rotate_rotors(&mut heli5, delta_time);
-
-            change_heading(&mut heli1,  timer);
+            unsafe {
+                rotate_rotors(&mut heli1, delta_time);
+                rotate_rotors(&mut heli2, delta_time);
+                rotate_rotors(&mut heli3, delta_time);
+                rotate_rotors(&mut heli4, delta_time);
+                rotate_rotors(&mut heli5, delta_time);
+                rotate_rotors(&mut player_heli, delta_time);
+            }
+            change_heading(&mut heli1, timer);
             change_heading(&mut heli2, timer + 0.8);
             change_heading(&mut heli3, timer + 1.6);
             change_heading(&mut heli4, timer + 2.4);
             change_heading(&mut heli5, timer + 3.2);
 
             unsafe {
-                let identity = glm::identity();
-                update_node_transformations(&(&scene_graph as *const SceneNode as *mut SceneNode), &identity);
+                update_node_transformations(&mut scene_graph, &glm::identity());
             }
+
+            view = glm::look_at(&(&player_heli.current_aboslute_position + &glm::vec3(0.0, 5.0, 15.0)),
+                                &player_heli.current_aboslute_position,
+                                &glm::vec3(0.0, 1.0, 0.0),
+            );
 
             unsafe {
                 gl::ClearColor(0.163, 0.163, 0.163, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-                draw_scene(&scene_graph, &(&projection*&view), &shader);
+                draw_scene(&scene_graph, &(&projection * &view), &shader);
             }
 
             context.swap_buffers().unwrap();
