@@ -1,0 +1,6 @@
+tasks:
+  - init: |
+        pyenv isntall 3.6.12
+        pyenv global 3.6.12
+        pip install torch torchvision tqdm scikit-image
+    command: 'echo "TODO: Replace with command to start project"'
