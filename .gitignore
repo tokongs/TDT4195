@@ -3,3 +3,4 @@
 __pycache__/
 saved_model.torch
 TDT4195-StarterCode/assignment1/data/
+venv/
