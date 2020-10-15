@@ -1,5 +1,5 @@
 tasks:
   - init: |
         pyenv install 3.6.12 &&
-        pip install torch torchvision tqdm scikit-image
+        pip install torch torchvision tqdm scikit-image jupyter
     command: 'echo "TODO: Replace with command to start project"'
